@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Buggy Boy Remake</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-title" content="Buggy Boy">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-64.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap">
+<style>
+  /* One deliberate look: the C64 in a dark room. Black like the border, light-blue like the READY screen. */
+  :root {
+    color-scheme: dark;
+    --ground: #000000;
+    --panel: #0c0b1e;
+    --ink: #e9e7f7;
+    --dim: #8e8ab8;
+    --c64-blue: #706deb;      /* C64 light blue (Colodore) */
+    --c64-yellow: #edf171;    /* the KPH digits */
+    --btn: rgba(112, 109, 235, 0.16);
+    --btn-edge: rgba(233, 231, 247, 0.34);
+    --btn-on: rgba(237, 241, 113, 0.42);
+    --font-pixel: 'Silkscreen', ui-monospace, 'Courier New', monospace;
+    --font-text: ui-sans-serif, system-ui, sans-serif;
+  }
+  html, body { height: 100%; margin: 0; background: var(--ground); color: var(--ink); overflow: hidden;
+               touch-action: none; overscroll-behavior: none; }
+  body { display: flex; align-items: center; justify-content: center; padding-inline: 16px;
+         font-family: var(--font-pixel); -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  #screen { image-rendering: pixelated; image-rendering: crisp-edges; display: block; max-width: 100%; }
+  #status { position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%);
+            padding: 6px 12px; font-size: 12px; letter-spacing: 0.1em; background: rgba(0, 0, 0, 0.75);
+            border: 1px solid var(--btn-edge); opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+  #status.show { opacity: 1; }
+  /* touch controls (shown on touch devices) */
+  #touch { position: fixed; inset: 0; display: none; pointer-events: none; }
+  body.touch #touch { display: block; }
+  body.touch.pad #touch { display: none; }   /* a controller on the iPad: no on-screen pads */
+  /* left: TURBO / JUMP beside the steering arrows; right: GEAR / BRAKE beside GAS */
+  .pad { position: absolute; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 14px; align-items: flex-end; pointer-events: auto; }
+  .pad.left { left: calc(16px + env(safe-area-inset-left, 0px)); }
+  .pad.right { right: calc(16px + env(safe-area-inset-right, 0px)); }
+  .group { display: flex; gap: 14px; }
+  .group.col { flex-direction: column; }
+  .btn { width: 88px; height: 88px; border-radius: 50%; background: var(--btn); border: 2px solid var(--btn-edge);
+         display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+         font-size: 13px; font-weight: 700; letter-spacing: 0.06em; color: var(--ink); }
+  .btn small { font-size: 9px; font-weight: 400; color: var(--dim); letter-spacing: 0.08em; }
+  .btn.big { width: 112px; height: 112px; font-size: 16px; }
+  .btn.on { background: var(--btn-on); border-color: var(--c64-yellow); }
+  /* in the menus the buttons are a joystick: their menu job shows above them (body.menu, set by main.js) */
+  .btn { position: relative; }
+  body.menu .pad .btn[data-menu]::before { content: attr(data-menu); position: absolute; bottom: calc(100% + 4px); left: 50%;
+         transform: translateX(-50%); font-size: 9px; letter-spacing: 0.1em; color: var(--c64-yellow); white-space: nowrap; pointer-events: none;
+         background: rgba(0, 0, 0, 0.7); padding: 1px 4px; border-radius: 3px; }   /* readable where a pad overlaps the picture (4:3 tablets) */
+  body.menu .pad .btn:not([data-menu]) { opacity: 0.35; }       /* TURBO and JUMP: races only */
+  body.menu .btn small { display: none; }
+  body.menu .pad, body.menu .group { row-gap: 24px; }            /* room for the labels between rows only */
+  .pause .menu-label, body.menu .pause .race-label { display: none; }
+  body.menu .pause .menu-label { display: inline; }
+  .arrow { font-size: 30px; line-height: 1; }
+  .pause { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); right: calc(16px + env(safe-area-inset-right, 0px));
+           width: 64px; height: 38px; border-radius: 8px; font-size: 11px; pointer-events: auto; }
+  /* phones: each side is two short rows, small buttons over the big ones, so the two sides never meet
+     (portrait) and cover little of the picture (landscape) */
+  @media (max-width: 700px), (max-height: 500px) {
+    .pad { flex-direction: column; gap: 8px; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+    .pad.left { align-items: flex-start; left: calc(10px + env(safe-area-inset-left, 0px)); }
+    .pad.right { align-items: flex-end; right: calc(10px + env(safe-area-inset-right, 0px)); }
+    .group, .group.col { flex-direction: row; gap: 8px; }
+    .pad .btn { width: 56px; height: 56px; font-size: 10px; }
+    .pad .btn.big { width: 72px; height: 72px; font-size: 12px; }
+    .btn small { display: none; }
+    .arrow { font-size: 24px; }
+  }
+  /* portrait phones: the picture up under PAUSE, bigger buttons in the room below it (sized to the width,
+     so they still fit side by side on the narrowest phones) */
+  @media (max-width: 700px) and (orientation: portrait) {
+    body { align-items: flex-start; padding-top: calc(60px + env(safe-area-inset-top, 0px)); }
+    .pad { bottom: calc(24px + env(safe-area-inset-bottom, 0px)); gap: 10px; }
+    .group, .group.col { gap: 10px; }
+    .pad .btn { width: min(64px, 17vw); height: min(64px, 17vw); font-size: 11px; }
+    .pad .btn.big { width: min(88px, 23vw); height: min(88px, 23vw); font-size: 13px; }
+    .arrow { font-size: 28px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) { #status { transition: none; } }
+</style>
+
+<canvas id="screen" aria-label="Buggy Boy game screen"></canvas>
+<div id="status" role="status"></div>
+
+<div id="touch" aria-hidden="true">
+  <div class="pad left">
+    <div class="group col">
+      <div class="btn" data-act="turbo">TURBO<small>new tracks</small></div>
+      <div class="btn" data-act="jump">JUMP<small>new tracks</small></div>
+    </div>
+    <div class="group">
+      <div class="btn big" data-bit="4" data-menu="LEFT"><span class="arrow">&#9664;</span></div>
+      <div class="btn big" data-bit="8" data-menu="RIGHT"><span class="arrow">&#9654;</span></div>
+    </div>
+  </div>
+  <div class="pad right">
+    <div class="group col">
+      <div class="btn" data-bit="16" data-menu="SELECT">GEAR<small>fire</small></div>
+      <div class="btn" data-bit="2" data-menu="DOWN">BRAKE<small>down</small></div>
+    </div>
+    <div class="btn big" data-bit="1" data-menu="UP">GAS<small>up</small></div>
+  </div>
+  <div class="btn pause" data-pause="1"><span class="race-label">PAUSE</span><span class="menu-label">BACK</span></div>
+</div>
+
+<style>
+  #gate { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+          padding: calc(16px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px)); background: var(--ground); }
+  #gate[hidden] { display: none; }
+  #gate form { width: min(320px, 100%); display: flex; flex-direction: column; gap: 12px; padding: 24px;
+               background: var(--panel); border: 2px solid var(--c64-blue); }
+  #gate h1 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: 0.08em; color: var(--c64-yellow); text-align: center; }
+  #gate label { font-size: 12px; letter-spacing: 0.12em; color: var(--dim); }
+  #gate input { font: 18px var(--font-text); padding: 10px 12px; background: #000; color: var(--ink);
+                border: 2px solid var(--btn-edge); border-radius: 0; -webkit-user-select: text; user-select: text; }
+  #gate input:focus { outline: none; border-color: var(--c64-yellow); }
+  #gate button { font: 700 16px var(--font-pixel); letter-spacing: 0.12em; padding: 12px; border: 0; border-radius: 0;
+                 background: var(--c64-blue); color: #fff; cursor: pointer; }
+  #gate-msg { min-height: 1.2em; margin: 0; font-size: 12px; letter-spacing: 0.08em; color: var(--c64-yellow); text-align: center; }
+  #gate .note { margin: 0; font: 12px/1.4 var(--font-text); color: var(--dim); text-align: center; }
+</style>
+<div id="gate" hidden>
+  <form id="gate-form">
+    <h1>BUGGY BOY</h1>
+    <label for="gate-pass">PASSWORD</label>
+    <input id="gate-pass" name="password" type="password" autocomplete="current-password" autocapitalize="none"
+           autocorrect="off" spellcheck="false" enterkeyhint="go">
+    <button type="submit">PLAY</button>
+    <p id="gate-msg" role="status"></p>
+    <p class="note">A private copy, for owners of the original Commodore 64 game.</p>
+  </form>
+</div>
+<script type="module">
+// the game is in game.bin, encrypted; the key made from the password is kept on this device
+const KEY = 'buggyboy.key.v1', ITERATIONS = 600000;
+const $ = (id) => document.getElementById(id);
+const normalize = (s) => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+let box = null;
+async function load() {
+  if (box) return box;
+  const res = await fetch('game.bin', { cache: 'no-cache' });
+  if (!res.ok) throw new Error('game.bin ' + res.status);
+  const bin = new Uint8Array(await res.arrayBuffer());
+  if (String.fromCharCode(...bin.subarray(0, 4)) !== 'BBP1') throw new Error('game.bin format');
+  return (box = { salt: bin.slice(4, 20), iv: bin.slice(20, 32), data: bin.slice(32) });
+}
+async function open(key) {
+  const { iv, data } = await load();
+  try { return new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data)); } catch { return null; }
+}
+function run(js) {
+  $('gate').remove();
+  const s = document.createElement('script');
+  s.type = 'module';
+  s.textContent = js;
+  document.body.append(s);
+}
+function ask(msg = '') { $('gate').hidden = false; $('gate-msg').textContent = msg; }
+const OFFLINE = "CAN'T LOAD THE GAME. CHECK THE CONNECTION.";
+async function start() {
+  let saved = null;
+  try { saved = localStorage.getItem(KEY); } catch {}
+  if (!saved) return ask();
+  try {
+    const raw = Uint8Array.from(atob(saved), (c) => c.charCodeAt(0));
+    const js = await open(await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['decrypt']));
+    if (js) return run(js);
+    try { localStorage.removeItem(KEY); } catch {}
+    ask('THE PASSWORD HAS CHANGED');
+  } catch { ask(OFFLINE); }
+}
+$('gate-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const pass = normalize($('gate-pass').value);
+  if (!pass) return;
+  $('gate-msg').textContent = 'CHECKING...';
+  try {
+    const { salt } = await load();
+    const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
+    const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: ITERATIONS }, base,
+      { name: 'AES-GCM', length: 256 }, true, ['decrypt']);
+    const js = await open(key);
+    if (!js) { $('gate-msg').textContent = 'WRONG PASSWORD'; return; }
+    const raw = new Uint8Array(await crypto.subtle.exportKey('raw', key));
+    try { localStorage.setItem(KEY, btoa(String.fromCharCode(...raw))); } catch {}
+    run(js);
+  } catch { $('gate-msg').textContent = OFFLINE; }
+});
+start();
+</script>
+
+</html>
