@@ -1,7 +1,8 @@
 // Buggy Boy offline cache (made by tools/build_pages.mjs)
-const CACHE = 'buggyboy-d814df97ec0b';
+const CACHE = 'buggyboy-a3442e70c707';
 const FILES = ['./', 'index.html', 'game.bin', 'sid-worklet.js', 'manifest.webmanifest',
-               'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'icon-64.png'];
+               'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'icon-64.png',
+               'icon-maskable-192.png', 'icon-maskable-512.png'];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE)
     .then((c) => c.addAll(FILES.map((f) => new Request(f, { cache: 'reload' }))))
