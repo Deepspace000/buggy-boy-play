@@ -1,5 +1,5 @@
 // Buggy Boy offline cache (made by tools/build_pages.mjs)
-const CACHE = 'buggyboy-a3442e70c707';
+const CACHE = 'buggyboy-76f0465e0924';
 const FILES = ['./', 'index.html', 'game.bin', 'sid-worklet.js', 'manifest.webmanifest',
                'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'icon-64.png',
                'icon-maskable-192.png', 'icon-maskable-512.png'];

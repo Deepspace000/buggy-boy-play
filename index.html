@@ -149,7 +149,7 @@
 // the game is in game.bin, encrypted; the key made from the password is kept on this device
 const KEY = 'buggyboy.key.v1', ITERATIONS = 600000;
 const $ = (id) => document.getElementById(id);
-const normalize = (s) => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const normalize = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '');
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 let box = null;
 async function load() {
